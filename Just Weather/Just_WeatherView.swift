@@ -13,9 +13,10 @@ struct Just_WeatherView: View {
     @EnvironmentObject var locationManager: LocationManager
     @StateObject private var weatherData = WeatherData()
     @State private var isLoading = true
-    
+
     let formatter = MeasurementFormatter()
-    
+    private let isUSLocale = Locale.current.measurementSystem == .us
+
     var body: some View {
         VStack {
             if isLoading {
@@ -36,7 +37,7 @@ struct Just_WeatherView: View {
                     VStack {
                         Image(systemName: weatherData.conditionSymbol)
                             .font(.largeTitle)
-                        Text("\(weatherData.condition)")
+                        Text(String(describing: weatherData.condition))
                     }
                     Spacer()
                     HStack {
@@ -83,11 +84,7 @@ struct Just_WeatherView: View {
                                 // Text("Wind:")
                                 Spacer()
                                 if let wind = weatherData.wind {
-                                    if Locale.current.measurementSystem == .us {
-                                        Text("\(toMilesPerHour(wind.speed.value), specifier: "%.0f")mph \(cardinalDirection(from: wind.direction.value))")
-                                    } else {
-                                        Text("\(wind.speed.value, specifier: "%.0f")km/h \(cardinalDirection(from: wind.direction.value))")
-                                    }
+                                    Text(formatWind(wind, isUSLocale: isUSLocale))
                                 } else {
                                     Text("Fetching...")
                                 }
@@ -109,18 +106,34 @@ struct Just_WeatherView: View {
                         }
                     }
                     .padding(.horizontal)
-                    
+
                     if let moonPhase = weatherData.moonPhase {
                         HStack {
                             Image(systemName: moonPhase.symbolName)
-                            Text("\(moonPhase)")
+                            Text(String(describing: moonPhase))
                         }
                     }
+
                     Spacer()
                 }
             } else {
                 Text("No Weather Data Available")
                     .font(.largeTitle)
+            }
+        }
+        .overlay(alignment: .top) {
+            if weatherData.wind != nil, #available(iOS 26.0, *) {
+                WeatherSummaryView(
+                    apparentTemp: formatTemperature(weatherData.apparentTemperature.value, isUSLocale: isUSLocale),
+                    actualTemp: formatTemperature(weatherData.temperature.value, isUSLocale: isUSLocale),
+                    dewPoint: formatTemperature(weatherData.dewPoint.value, isUSLocale: isUSLocale),
+                    humidity: Int(weatherData.humidity * 100),
+                    wind: weatherData.wind.map { formatWind($0, isUSLocale: isUSLocale) } ?? "",
+                    highTemp: formatTemperature(weatherData.highTemp.value, isUSLocale: isUSLocale),
+                    lowTemp: formatTemperature(weatherData.lowTemp.value, isUSLocale: isUSLocale)
+                )
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
             }
         }
         .onAppear {
@@ -133,7 +146,7 @@ struct Just_WeatherView: View {
             fetchWeatherIfLocationAvailable()
         }
     }
-    
+
     private func fetchWeatherIfLocationAvailable() {
         Task {
             if let lastLocation = locationManager.lastLocation {
@@ -145,31 +158,8 @@ struct Just_WeatherView: View {
             }
         }
     }
+
     private func temperatureDecimalFormatter(_ temperature: Double) -> Text {
-        if Locale.current.measurementSystem == .us {
-            return Text("\(toFahrenheit(temperature), specifier: "%.0f")º")
-        } else {
-            let roundedTemperature = (temperature * 2).rounded() / 2
-            
-            if roundedTemperature < 10 && roundedTemperature > -10 && roundedTemperature != floor(roundedTemperature) {
-                return Text("\(roundedTemperature, specifier: "%.1f")º")
-            } else {
-                return Text("\(roundedTemperature, specifier: "%.0f")º")
-            }
-        }
-    }
-    
-    private func toFahrenheit(_ celsius: Double) -> Double {
-        return (celsius * 9.0 / 5.0) + 32.0
-    }
-    
-    private func toMilesPerHour(_ kilometersPerHour: Double) -> Double {
-        return kilometersPerHour * 0.621371
-    }
-    
-    private func cardinalDirection(from degrees: Double) -> String {
-        let directions = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW", "N"]
-        let index = Int((degrees + 11.25) / 22.5) % 16
-        return directions[index]
+        Text(formatTemperature(temperature, isUSLocale: isUSLocale))
     }
 }
