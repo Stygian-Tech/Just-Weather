@@ -10,6 +10,8 @@
 		22CEF4B82C969B80001E83AD /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22CEF4B72C969B80001E83AD /* WidgetKit.framework */; };
 		22CEF4BA2C969B80001E83AD /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22CEF4B92C969B80001E83AD /* SwiftUI.framework */; };
 		22CEF4C92C969B82001E83AD /* Just Weather Open ControlExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 22CEF4B52C969B80001E83AD /* Just Weather Open ControlExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		22EECEFB2F9059E8004726D7 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 22EECEFA2F9059E8004726D7 /* RevenueCat */; };
+		22EECEFD2F9059E8004726D7 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 22EECEFC2F9059E8004726D7 /* RevenueCatUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -108,6 +110,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				22EECEFD2F9059E8004726D7 /* RevenueCatUI in Frameworks */,
+				22EECEFB2F9059E8004726D7 /* RevenueCat in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -191,6 +195,8 @@
 			);
 			name = "Just Weather";
 			packageProductDependencies = (
+				22EECEFA2F9059E8004726D7 /* RevenueCat */,
+				22EECEFC2F9059E8004726D7 /* RevenueCatUI */,
 			);
 			productName = "Just Weather";
 			productReference = 222F21C02C76B206003D0F1E /* Just Weather.app */;
@@ -299,6 +305,9 @@
 			);
 			mainGroup = 222F21B72C76B206003D0F1E;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				22EECEF92F9059E8004726D7 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 222F21C12C76B206003D0F1E /* Products */;
 			projectDirPath = "";
@@ -773,6 +782,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		22EECEF92F9059E8004726D7 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.67.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		22EECEFA2F9059E8004726D7 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 22EECEF92F9059E8004726D7 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		22EECEFC2F9059E8004726D7 /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 22EECEF92F9059E8004726D7 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 222F21B82C76B206003D0F1E /* Project object */;
 }

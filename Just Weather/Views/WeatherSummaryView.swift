@@ -20,24 +20,29 @@ struct WeatherSummaryView: View {
     let wind: String            // e.g. "14 mph NW" or "" if unavailable
     let highTemp: String        // e.g. "76º"
     let lowTemp: String         // e.g. "58º"
+    let style: SummaryStyle
 
     @State private var summary: String? = nil
     @State private var isGenerating: Bool = false
 
-    // Re-generates only when comfort-relevant values change
+    // Re-generates when comfort-relevant values or the style changes
     private var taskID: String {
-        "\(apparentTemp)|\(actualTemp)|\(dewPoint)|\(humidity)|\(wind)"
+        "\(apparentTemp)|\(actualTemp)|\(dewPoint)|\(humidity)|\(wind)|\(style.rawValue)"
     }
 
     var body: some View {
+        if style == .none { return AnyView(EmptyView()) }
+
         switch SystemLanguageModel.default.availability {
         case .available:
-            summaryView
-                .task(id: taskID) {
-                    await generateSummary()
-                }
+            return AnyView(
+                summaryView
+                    .task(id: taskID) {
+                        await generateSummary()
+                    }
+            )
         case .unavailable:
-            EmptyView()
+            return AnyView(EmptyView())
         }
     }
 
@@ -55,6 +60,7 @@ struct WeatherSummaryView: View {
                         .font(.footnote)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(auroraGradient(phase: phase))
+                        .accessibilityLabel("Loading weather summary")
                 }
             } else if let text = summary {
                 Text(text)
@@ -62,17 +68,15 @@ struct WeatherSummaryView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .transition(.opacity.animation(.easeIn(duration: 0.4)))
+                    .accessibilityLabel(text)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
-        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 4)
+        .glassEffect(in: RoundedRectangle(cornerRadius: 20))
     }
 
     /// A wide gradient that slides across the text to create a continuous aurora sweep.
-    /// The gradient is 3 units wide; sliding it by `phase` keeps the visible [0,1]
-    /// window always covered while cycling through the colors.
     private func auroraGradient(phase: CGFloat) -> LinearGradient {
         LinearGradient(
             colors: [
@@ -91,11 +95,7 @@ struct WeatherSummaryView: View {
         isGenerating = true
         defer { isGenerating = false }
         do {
-            let session = LanguageModelSession(instructions: """
-                Describe in one short sentence how the weather feels to be outside in right now. \
-                Focus on the most noticeable comfort factor: warmth, humidity, wind chill, or stickiness. \
-                15 words or fewer. No numbers, no jargon, no greeting.
-                """)
+            let session = LanguageModelSession(instructions: summaryInstructions(for: style))
             let response = try await session.respond(to: weatherPrompt)
             summary = trimToTwoSentences(response.content)
         } catch {
@@ -127,7 +127,8 @@ struct WeatherSummaryView: View {
                 humidity: 72,
                 wind: "14 mph NW",
                 highTemp: "76º",
-                lowTemp: "58º"
+                lowTemp: "58º",
+                style: .basic
             )
             .padding(.horizontal)
         }

@@ -73,6 +73,60 @@ func trimToTwoSentences(_ text: String) -> String {
     return trimmed.hasSuffix(".") ? trimmed : trimmed + "."
 }
 
+// MARK: - Summary style
+
+enum SummaryStyle: String, CaseIterable, Identifiable {
+    case basic, technical, poetic, grumpy, none
+
+    var id: String { rawValue }
+
+    var label: String { rawValue.capitalized }
+
+    var icon: String {
+        switch self {
+        case .basic:     return "cloud.sun"
+        case .technical: return "chart.bar.doc.horizontal"
+        case .poetic:    return "sparkles"
+        case .grumpy:    return "cloud.bolt.rain"
+        case .none:      return "minus.circle"
+        }
+    }
+}
+
+/// Returns the LanguageModelSession system instructions for the given summary style.
+func summaryInstructions(for style: SummaryStyle) -> String {
+    let shared = "Output exactly one sentence. No greeting. No numbers. Do not repeat the data."
+    switch style {
+    case .basic:
+        return """
+            You describe outdoor conditions in plain language. \
+            State what the air feels like — comfort, humidity, wind — using only everyday words. \
+            No metaphors, similes, or poetic language. \
+            \(shared)
+            """
+    case .technical:
+        return """
+            You brief a meteorologist on current conditions. \
+            Use precise professional terminology: thermal comfort, dew point depression, wind if notable. \
+            \(shared)
+            """
+    case .poetic:
+        return """
+            You describe weather through vivid sensory imagery. \
+            Metaphor and simile are welcome. Keep it evocative and concise. \
+            \(shared)
+            """
+    case .grumpy:
+        return """
+            You describe weather as someone perpetually annoyed by it. \
+            Complain about what's unpleasant. Be dry and wry, not melodramatic. \
+            \(shared)
+            """
+    case .none:
+        return "" // Not used — view is skipped entirely
+    }
+}
+
 // MARK: - Weather summary prompt
 
 /// Builds the user-facing prompt sent to LanguageModelSession.
@@ -91,5 +145,5 @@ func weatherSummaryPrompt(
         "Day range: \(lowTemp) – \(highTemp)"
     ]
     if !wind.isEmpty { parts.insert("Wind: \(wind)", at: 2) }
-    return parts.joined(separator: "\n")
+    return "Current conditions:\n" + parts.joined(separator: "\n") + "\n\nDescribe in one sentence how stepping outside feels right now."
 }

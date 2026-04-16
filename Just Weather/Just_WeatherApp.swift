@@ -12,11 +12,13 @@ import CoreLocation
 @main
 struct Just_WeatherApp: App {
     @StateObject private var locationManager = LocationManager()
-    
+    @StateObject private var purchaseManager = PurchaseManager()
+
     var body: some Scene {
         WindowGroup {
             Just_WeatherView()
                 .environmentObject(locationManager)
+                .environmentObject(purchaseManager)
                 .onAppear {
                     locationManager.startUpdatingLocation()
                 }
