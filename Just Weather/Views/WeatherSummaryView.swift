@@ -7,27 +7,21 @@
 //
 
 import SwiftUI
+import Foundation
 import FoundationModels
 import WeatherKit
 
 @available(iOS 26.0, *)
 struct WeatherSummaryView: View {
-    // Pre-formatted locale-correct strings (passed from Just_WeatherView)
-    let apparentTemp: String    // e.g. "72º"
-    let actualTemp: String      // e.g. "68º"
-    let dewPoint: String        // e.g. "61º"
-    let humidity: Int           // 0–100
-    let wind: String            // e.g. "14 mph NW" or "" if unavailable
-    let highTemp: String        // e.g. "76º"
-    let lowTemp: String         // e.g. "58º"
+    /// Full structured weather dump for the model (see `weatherSummaryDataContext`).
+    let dataContext: String
     let style: SummaryStyle
 
     @State private var summary: String? = nil
     @State private var isGenerating: Bool = false
 
-    // Re-generates when comfort-relevant values or the style changes
     private var taskID: String {
-        "\(apparentTemp)|\(actualTemp)|\(dewPoint)|\(humidity)|\(wind)|\(style.rawValue)"
+        "\(style.rawValue)|\(dataContext)"
     }
 
     var body: some View {
@@ -48,32 +42,40 @@ struct WeatherSummaryView: View {
 
     @ViewBuilder
     private var summaryView: some View {
-        Group {
-            if isGenerating || summary == nil {
-                // Apple Intelligence aurora shimmer — gradient sweeps left-to-right via TimelineView
-                TimelineView(.animation) { timeline in
-                    let phase = CGFloat(
-                        timeline.date.timeIntervalSinceReferenceDate
-                            .truncatingRemainder(dividingBy: 2.0) / 2.0
-                    )
-                    Text("Checking how it feels outside…")
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Today At A Glance")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            Group {
+                if isGenerating || summary == nil {
+                    TimelineView(.animation) { timeline in
+                        let phase = CGFloat(
+                            timeline.date.timeIntervalSinceReferenceDate
+                                .truncatingRemainder(dividingBy: 2.0) / 2.0
+                        )
+                        Text("Checking how it feels outside…")
+                            .font(.footnote)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .foregroundStyle(auroraGradient(phase: phase))
+                            .accessibilityLabel("Loading weather summary")
+                    }
+                } else if let text = summary {
+                    Text(text)
                         .font(.footnote)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(auroraGradient(phase: phase))
-                        .accessibilityLabel("Loading weather summary")
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity.animation(.easeIn(duration: 0.4)))
+                        .accessibilityLabel(text)
                 }
-            } else if let text = summary {
-                Text(text)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .transition(.opacity.animation(.easeIn(duration: 0.4)))
-                    .accessibilityLabel(text)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .glassEffect(in: RoundedRectangle(cornerRadius: 20))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     /// A wide gradient that slides across the text to create a continuous aurora sweep.
@@ -96,23 +98,27 @@ struct WeatherSummaryView: View {
         defer { isGenerating = false }
         do {
             let session = LanguageModelSession(instructions: summaryInstructions(for: style))
-            let response = try await session.respond(to: weatherPrompt)
-            summary = trimToTwoSentences(response.content)
+            let response = try await session.respond(to: weatherSummaryTaskPrompt(dataContext: dataContext))
+            summary = Self.atMostSentences(response.content.trimmingCharacters(in: .whitespacesAndNewlines), max: 2)
         } catch {
             // Silent failure — keep prior summary if one exists
         }
     }
 
-    private var weatherPrompt: String {
-        weatherSummaryPrompt(
-            apparentTemp: apparentTemp,
-            actualTemp: actualTemp,
-            dewPoint: dewPoint,
-            humidity: humidity,
-            wind: wind,
-            highTemp: highTemp,
-            lowTemp: lowTemp
-        )
+    /// Keeps the first `max` sentences for a hard cap when the model runs over.
+    private static func atMostSentences(_ text: String, max: Int) -> String {
+        guard max > 0, !text.isEmpty else { return text }
+        let ns = text as NSString
+        var parts: [String] = []
+        ns.enumerateSubstrings(in: NSRange(location: 0, length: ns.length), options: [.bySentences, .localized]) { substring, _, _, stop in
+            guard let substring, !substring.isEmpty else { return }
+            parts.append(substring.trimmingCharacters(in: .whitespacesAndNewlines))
+            if parts.count >= max {
+                stop.pointee = true
+            }
+        }
+        if parts.isEmpty { return text }
+        return parts.joined(separator: " ")
     }
 }
 
@@ -121,13 +127,7 @@ struct WeatherSummaryView: View {
     if #available(iOS 26.0, *) {
         VStack(spacing: 16) {
             WeatherSummaryView(
-                apparentTemp: "72º",
-                actualTemp: "68º",
-                dewPoint: "61º",
-                humidity: 72,
-                wind: "14 mph NW",
-                highTemp: "76º",
-                lowTemp: "58º",
+                dataContext: "NOW: condition clear\nTODAY: high 76º low 58º\nALERTS: none",
                 style: .basic
             )
             .padding(.horizontal)

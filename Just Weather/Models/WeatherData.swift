@@ -10,50 +10,35 @@ import CoreLocation
 
 @MainActor
 class WeatherData: ObservableObject {
-    @Published var temperature: Measurement<UnitTemperature> = Measurement(value: 0, unit: .fahrenheit)
-    @Published var apparentTemperature: Measurement<UnitTemperature> = Measurement(value: 0, unit: .fahrenheit)
-    
-    @Published var dewPoint: Measurement<UnitTemperature> = Measurement(value: 0, unit: .fahrenheit)
-    @Published var humidity: Double = 0.0
-    
-    @Published var wind: Wind?
-    
-    @Published var condition: WeatherCondition = .clear
-    
-    @Published var conditionSymbol: String = "sun.max"
-    
-    @Published var sunrise: Date?
-    @Published var sunset: Date?
-    
-    @Published var moonPhase: MoonPhase?
-    
-    @Published var highTemp: Measurement<UnitTemperature> = Measurement(value: 0, unit: .fahrenheit)
-    @Published var lowTemp: Measurement<UnitTemperature> = Measurement(value: 0, unit: .fahrenheit)
-    
+    @Published var current: CurrentWeather? = nil
+    @Published var today: DayWeather? = nil
+    @Published var hourly: Forecast<HourWeather>? = nil
+    @Published var alerts: [WeatherAlert]? = nil
+
+    /// Up to five clock hours at or after now (falls back to the first five forecast slots if needed).
+    var nextFiveHours: [HourWeather] {
+        guard let hourly else { return [] }
+        let now = Date()
+        let upcoming = hourly.forecast.filter { $0.date >= now }.sorted { $0.date < $1.date }
+        if upcoming.count >= 5 {
+            return Array(upcoming.prefix(5))
+        }
+        if !upcoming.isEmpty {
+            return upcoming
+        }
+        return Array(hourly.forecast.prefix(5))
+    }
+
     func fetchWeather(for location: CLLocation) async {
         do {
-            let weather = try await WeatherService.shared.weather(for: location)
-            
-            self.temperature = weather.currentWeather.temperature
-            self.apparentTemperature = weather.currentWeather.apparentTemperature
-            
-            self.dewPoint = weather.currentWeather.dewPoint
-            self.humidity = weather.currentWeather.humidity
-            
-            self.wind = weather.currentWeather.wind
-            
-            self.condition = weather.currentWeather.condition
-            
-            self.conditionSymbol = weather.currentWeather.symbolName
-            
-            self.sunrise = weather.dailyForecast[0].sun.sunrise
-            self.sunset = weather.dailyForecast[0].sun.sunset
-            
-            self.moonPhase = weather.dailyForecast[0].moon.phase
-            
-            self.highTemp = weather.dailyForecast[0].highTemperature
-            self.lowTemp = weather.dailyForecast[0].lowTemperature
-            
+            let (current, daily, hourly, alerts) = try await WeatherService.shared.weather(
+                for: location,
+                including: .current, .daily, .hourly, .alerts
+            )
+            self.current = current
+            self.today = daily.first
+            self.hourly = hourly
+            self.alerts = alerts
         } catch {
             print("Error fetching weather: \(error.localizedDescription)")
         }

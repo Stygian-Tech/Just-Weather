@@ -247,67 +247,33 @@ struct TrimToTwoSentencesTests {
     }
 }
 
-// MARK: - weatherSummaryPrompt
+// MARK: - weather summary context + task prompt
 
-@Suite("weatherSummaryPrompt")
-struct WeatherSummaryPromptTests {
-    @Test func withWind_insertsWindAtCorrectPosition() {
-        let prompt = weatherSummaryPrompt(
-            apparentTemp: "72º",
-            actualTemp: "68º",
-            dewPoint: "61º",
-            humidity: 72,
-            wind: "14 mph NW",
-            highTemp: "76º",
-            lowTemp: "58º"
-        )
-        let lines = prompt.components(separatedBy: "\n")
-        #expect(lines.count == 4)
-        #expect(lines[0] == "Apparent temperature: 72º (actual: 68º)")
-        #expect(lines[1] == "Dew point: 61º, humidity: 72%")
-        #expect(lines[2] == "Wind: 14 mph NW")
-        #expect(lines[3] == "Day range: 58º – 76º")
+@Suite("weatherSummaryTaskPrompt")
+struct WeatherSummaryTaskPromptTests {
+    @Test func embedsDataContextAndTask() {
+        let ctx = "NOW: condition clear\nALERTS: none"
+        let prompt = weatherSummaryTaskPrompt(dataContext: ctx)
+        #expect(prompt.contains("NOW: condition clear"))
+        #expect(prompt.contains("ALERTS: none"))
+        #expect(prompt.contains("two short sentences"))
     }
+}
 
-    @Test func withoutWind_omitsWindLine() {
-        let prompt = weatherSummaryPrompt(
-            apparentTemp: "72º",
-            actualTemp: "68º",
-            dewPoint: "61º",
-            humidity: 72,
-            wind: "",
-            highTemp: "76º",
-            lowTemp: "58º"
+@available(iOS 18, *)
+@Suite("weatherSummaryDataContext")
+struct WeatherSummaryDataContextTests {
+    @Test func omitsTodayWhenNil() {
+        let ctx = weatherSummaryDataContext(
+            current: nil,
+            today: nil,
+            nextHours: [],
+            alerts: nil,
+            isUSLocale: true
         )
-        let lines = prompt.components(separatedBy: "\n")
-        #expect(lines.count == 3)
-        #expect(lines[0] == "Apparent temperature: 72º (actual: 68º)")
-        #expect(lines[1] == "Dew point: 61º, humidity: 72%")
-        #expect(lines[2] == "Day range: 58º – 76º")
-    }
-
-    @Test func humidityFormatsAsPercent() {
-        let prompt = weatherSummaryPrompt(
-            apparentTemp: "20º", actualTemp: "18º", dewPoint: "10º",
-            humidity: 45, wind: "", highTemp: "25º", lowTemp: "15º"
-        )
-        #expect(prompt.contains("humidity: 45%"))
-    }
-
-    @Test func extremeHumidity_zero() {
-        let prompt = weatherSummaryPrompt(
-            apparentTemp: "20º", actualTemp: "18º", dewPoint: "10º",
-            humidity: 0, wind: "", highTemp: "25º", lowTemp: "15º"
-        )
-        #expect(prompt.contains("humidity: 0%"))
-    }
-
-    @Test func extremeHumidity_oneHundred() {
-        let prompt = weatherSummaryPrompt(
-            apparentTemp: "30º", actualTemp: "28º", dewPoint: "28º",
-            humidity: 100, wind: "", highTemp: "32º", lowTemp: "25º"
-        )
-        #expect(prompt.contains("humidity: 100%"))
+        #expect(ctx.contains("current weather unavailable"))
+        #expect(ctx.contains("daily forecast unavailable"))
+        #expect(ctx.contains("ALERTS: none"))
     }
 }
 
