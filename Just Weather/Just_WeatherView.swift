@@ -26,35 +26,56 @@ struct Just_WeatherView: View {
     private let isUSLocale = Locale.current.measurementSystem == .us
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Group {
-                if #available(iOS 26, *) {
-                    ios26Layout
-                        .task(id: locationGeocodeTaskID) {
-                            await refreshLocationPlacemark()
+        NavigationStack {
+            GeometryReader { geometry in
+                let layoutHeight = max(320, geometry.size.height)
+                let heroSize = Self.scaledHeroFontSize(availableHeight: layoutHeight)
+                ZStack {
+                    Group {
+                        if #available(iOS 26, *) {
+                            ios26Layout(heroFontSize: heroSize)
+                        } else {
+                            legacyLayout(heroFontSize: heroSize)
                         }
-                } else {
-                    legacyLayout
+                    }
+                    .modifier(OptionalFontDesignModifier(design: appFontStyle.fontDesign))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+            }
+            .task(id: locationGeocodeTaskID) {
+                await refreshLocationPlacemark()
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    navigationLocationPrincipal
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.title3)
+                            .foregroundStyle(.primary)
+                    }
+                    .accessibilityLabel("Settings")
                 }
             }
-            .modifier(OptionalFontDesignModifier(design: appFontStyle.fontDesign))
-
-            // Gear icon — top-right corner
-            Button {
-                showSettings = true
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.title3)
-                    .foregroundStyle(.primary)
-                    .padding(16)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Settings")
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(purchaseManager)
         }
+    }
+
+    /// Hero point size for “feels like”; scales down on shorter vertical space so upper content clears the island / notch.
+    private static func scaledHeroFontSize(availableHeight: CGFloat) -> CGFloat {
+        let cap: CGFloat = 150
+        let floor: CGFloat = 76
+        let byHeight = availableHeight * 0.175
+        return min(cap, max(floor, byHeight))
     }
 
     // MARK: - Pre-formatted stat values (shared by both layouts)
@@ -68,21 +89,27 @@ struct Just_WeatherView: View {
 
     // MARK: - Shared sections (accessible on all OS versions)
 
-    private var feelsLikeSection: some View {
+    private func feelsLikeSection(heroFontSize: CGFloat) -> some View {
         let apparentValue = weatherData.current?.apparentTemperature.value ?? 0
         let heroFont: Font = {
             switch appFontStyle {
             case .regular:
-                return .custom("SF-Pro-Display-Regular", size: 150, relativeTo: .largeTitle)
+                return .custom("SF-Pro-Display-Regular", size: heroFontSize, relativeTo: .largeTitle)
             case .rounded, .serif, .monospaced:
-                return .system(size: 150, weight: .regular, design: appFontStyle.fontDesign)
+                return .system(size: heroFontSize, weight: .regular, design: appFontStyle.fontDesign)
             }
         }()
-        return VStack {
+        return VStack(spacing: 6) {
             temperatureDecimalFormatter(apparentValue)
                 .font(heroFont)
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
+                .layoutPriority(1)
             Text("Feels Like")
         }
+        .multilineTextAlignment(.center)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Feels like \(formatTemperature(apparentValue, isUSLocale: isUSLocale))")
         .accessibilityAddTraits(.isHeader)
@@ -143,16 +170,13 @@ struct Just_WeatherView: View {
     // MARK: - iOS 26 layout (Liquid Glass)
 
     @available(iOS 26, *)
-    private var ios26Layout: some View {
+    private func ios26Layout(heroFontSize: CGFloat) -> some View {
         VStack(spacing: 0) {
-            Spacer()
+            Spacer(minLength: 6)
 
-            locationCapsuleGlass
-                .padding(.bottom, 8)
+            feelsLikeSection(heroFontSize: heroFontSize)
 
-            feelsLikeSection
-
-            Spacer()
+            Spacer(minLength: 8)
 
             VStack(spacing: 12) {
                 highLowSection
@@ -184,36 +208,44 @@ struct Just_WeatherView: View {
         }
     }
 
-    @available(iOS 26, *)
     private var locationGeocodeTaskID: String {
         guard let loc = locationManager.lastLocation else { return "nil" }
         return "\(loc.coordinate.latitude),\(loc.coordinate.longitude),\(loc.timestamp.timeIntervalSince1970)"
     }
 
-    @available(iOS 26, *)
+    /// Centered navigation title: same location pill as the former in-body capsule (glass on iOS 26+).
     @ViewBuilder
-    private var locationCapsuleGlass: some View {
-        if !placemarkTitle.isEmpty {
-            HStack(spacing: 8) {
-                Image(systemName: "location.fill")
-                    .font(.subheadline)
-                    .accessibilityHidden(true)
-                Text(placemarkTitle)
-                    .font(.subheadline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-            }
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
-            .glassEffect(in: Capsule())
-            .padding(.horizontal, 24)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Location, \(placemarkTitle)")
+    private var navigationLocationPrincipal: some View {
+        if placemarkTitle.isEmpty {
+            EmptyView()
+        } else if #available(iOS 26, *) {
+            locationPillRow
+                .glassEffect(in: Capsule())
+                .frame(maxWidth: 280)
+        } else {
+            locationPillRow
+                .background(.thinMaterial, in: Capsule())
+                .frame(maxWidth: 280)
         }
     }
 
-    @available(iOS 26, *)
+    private var locationPillRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "location.fill")
+                .font(.subheadline)
+                .accessibilityHidden(true)
+            Text(placemarkTitle)
+                .font(.subheadline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Location, \(placemarkTitle)")
+    }
+
     private func refreshLocationPlacemark() async {
         guard let loc = locationManager.lastLocation else {
             await MainActor.run { placemarkTitle = "" }
@@ -306,6 +338,7 @@ struct Just_WeatherView: View {
                 }
                 .scrollTargetBehavior(.viewAligned)
                 .scrollPosition(id: $currentAlertPage)
+                .scrollDisabled(alerts.count == 1)
                 .frame(minHeight: 62)
                 .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
@@ -486,12 +519,12 @@ struct Just_WeatherView: View {
 
     // MARK: - Legacy layout (pre-iOS 26, raw SwiftUI text)
 
-    private var legacyLayout: some View {
+    private func legacyLayout(heroFontSize: CGFloat) -> some View {
         VStack {
             Spacer()
             Spacer()
             Spacer()
-            feelsLikeSection
+            feelsLikeSection(heroFontSize: heroFontSize)
             Spacer()
             Spacer()
             conditionSection

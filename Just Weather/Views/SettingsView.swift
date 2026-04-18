@@ -35,32 +35,23 @@ struct SettingsView: View {
 
     private var appFontStyleSection: some View {
         Section {
-            ForEach(AppFontStyle.allCases) { style in
-                Button {
-                    appFontStyle = style
-                } label: {
-                    HStack(alignment: .center, spacing: 12) {
-                        Image(systemName: style.icon)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 28, alignment: .center)
+            Picker("Font", selection: $appFontStyle) {
+                ForEach(AppFontStyle.allCases) { style in
+                    Label {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(style.label)
-                                .foregroundStyle(.primary)
                             Text(style.subtitle)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Spacer()
-                        if appFontStyle == style {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(.blue)
-                                .fontWeight(.semibold)
-                        }
+                    } icon: {
+                        Image(systemName: style.icon)
                     }
+                    .labelStyle(SettingsPickerLabelStyle())
+                    .tag(style)
                 }
             }
-        } header: {
-            Text("Font")
+            .pickerStyle(.menu)
         } footer: {
             Text("Applies to the main weather screen. Regular keeps the large temperature in SF Pro Display.")
         }
@@ -70,24 +61,14 @@ struct SettingsView: View {
 
     private var summaryStyleSection: some View {
         Section {
-            ForEach(SummaryStyle.allCases) { style in
-                Button {
-                    summaryStyle = style
-                } label: {
-                    HStack {
-                        Label(style.label, systemImage: style.icon)
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        if summaryStyle == style {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(.blue)
-                                .fontWeight(.semibold)
-                        }
-                    }
+            Picker("Summary Style", selection: $summaryStyle) {
+                ForEach(SummaryStyle.allCases) { style in
+                    Label(style.label, systemImage: style.icon)
+                        .labelStyle(SettingsPickerLabelStyle())
+                        .tag(style)
                 }
             }
-        } header: {
-            Text("Summary Style")
+            .pickerStyle(.menu)
         } footer: {
             Text(styleFooter)
         }
@@ -137,6 +118,21 @@ struct SettingsView: View {
             }
         } header: {
             Text("Subscription")
+        }
+    }
+}
+
+// MARK: - Picker label layout
+
+/// Wider gap between SF Symbol and text than default `Label` (menu row + trailing selection).
+private struct SettingsPickerLabelStyle: LabelStyle {
+    /// Default `Label` spacing is tight; menu pickers read better with explicit separation.
+    var iconTitleSpacing: CGFloat = 14
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .center, spacing: iconTitleSpacing) {
+            configuration.icon
+            configuration.title
         }
     }
 }
