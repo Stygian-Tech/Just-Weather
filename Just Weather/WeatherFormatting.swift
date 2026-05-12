@@ -127,6 +127,41 @@ func cardinalDirection(from degrees: Double) -> String {
     return directions[index]
 }
 
+// MARK: - Text trimming
+
+/// Trims a string to at most two sentences, ensuring proper punctuation.
+func trimToTwoSentences(_ text: String) -> String {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    
+    // If empty, return as-is
+    if trimmed.isEmpty {
+        return trimmed
+    }
+    
+    // Split by periods, filtering out empty parts
+    let sentences = trimmed.split(separator: ".", omittingEmptySubsequences: true)
+    
+    // If no sentences (e.g., just a period), return original
+    if sentences.isEmpty {
+        return trimmed
+    }
+    
+    // Take at most two sentences
+    let result: String
+    if sentences.count <= 2 {
+        result = sentences.joined(separator: ". ")
+    } else {
+        result = sentences.prefix(2).joined(separator: ". ")
+    }
+    
+    // Ensure it ends with a period
+    if result.hasSuffix(".") {
+        return result
+    } else {
+        return result + "."
+    }
+}
+
 // MARK: - Summary style
 
 enum SummaryStyle: String, CaseIterable, Identifiable {
@@ -195,10 +230,27 @@ enum AppFontStyle: String, CaseIterable, Identifiable {
     }
 }
 
+private let weatherInterpreterBaseInstructions = """
+    You are a weather interpreter for Just. Weather., a minimal weather app. Your job is to generate short, plain-language descriptions of how the current weather feels - not just what the numbers say.
+
+    Weather is not a collection of isolated data points. Interpret conditions holistically:
+
+    - Wind & apparent temperature: Wind accelerates heat loss from skin. Even mild cold feels sharper with wind; calm cold is more bearable. Factor wind chill into how you describe cold days.
+    - Humidity & heat: High humidity suppresses sweat evaporation, making heat more oppressive than the thermometer suggests. The heat index reflects this - a 90°F day at 70% humidity feels meaningfully hotter than 90°F at 30%.
+    - Dewpoint & comfort: Dewpoint is the most reliable indicator of moisture comfort. Below 55°F feels crisp and dry. 55-65°F starts to feel muggy. Above 65°F is oppressive; above 70°F is genuinely difficult for most people.
+    - Humidity alone is misleading: 80% humidity at 50°F is comfortable. 80% humidity at 85°F is brutal. Always contextualize humidity against temperature.
+    - Overcast vs. sun: Cloud cover affects perceived warmth, especially in shoulder seasons. A sunny 55°F day feels different from an overcast 55°F day.
+    - Wind + humidity + heat together: These compound. A hot, humid, windy day may offer little relief from wind because the air itself is oppressive.
+
+    Respond with 1-3 sentences. Be direct and human. Describe the weather the way a friend would - what it actually feels like to step outside.
+    """
+
 /// Returns the LanguageModelSession system instructions for the given summary style.
 func summaryInstructions(for style: SummaryStyle) -> String {
     let shared = """
-        Hard cap: at most two sentences and about 45 words. No greeting. \
+        \(weatherInterpreterBaseInstructions)
+
+        Hard cap for this app: at most two sentences and about 45 words. No greeting. \
         Do not repeat numbers, units, temperatures, or clock times. \
         You must still reflect every important idea in the data: thermal comfort vs actual heat/cold, moisture, wind, \
         clouds/precip/visibility, UV when not trivial, today’s overall trend, the next-hours tendency, and any alerts. \
@@ -207,27 +259,37 @@ func summaryInstructions(for style: SummaryStyle) -> String {
     switch style {
     case .basic:
         return """
-            You describe outdoor conditions in plain language. \
-            State what the air feels like — comfort, humidity, wind — using only everyday words. \
-            No metaphors, similes, or poetic language. \
+            You are a no-nonsense weather reporter. Strip away all flourish. \
+            State facts about how it feels outside using the simplest, most direct language possible. \
+            Talk like someone explaining weather to a friend who just asked "what's it like out?" \
+            Zero poetry, zero drama, zero fancy words. Just the plain truth about stepping outside. \
             \(shared)
             """
     case .technical:
         return """
-            You brief a meteorologist on current conditions. \
-            Use precise professional terminology: thermal comfort, dew point depression, wind if notable. \
+            You are a consulting meteorologist briefing another scientist. \
+            Use formal atmospheric science terminology: adiabatic lapse rates, relative humidity vs dewpoint depression, \
+            sensible temperature vs air temperature, synoptic patterns, diurnal trends. \
+            Precision matters. Reference wind vectors, moisture gradients, radiative forcing. \
+            Write like you're documenting observations for a weather station log. \
             \(shared)
             """
     case .poetic:
         return """
-            You describe weather through vivid sensory imagery. \
-            Metaphor and simile are welcome; still obey the word and sentence cap. \
+            You are a weather poet painting the atmosphere in words. \
+            Transform conditions into vivid, sensory-rich imagery. Use metaphor liberally: \
+            humidity is weight, wind is breath, sun is a stage spotlight, clouds are curtains. \
+            Make the reader feel the air on their skin through language alone. \
+            Evoke mood and sensation. Be lyrical, almost literary, but never sacrifice clarity for beauty. \
             \(shared)
             """
     case .grumpy:
         return """
-            You describe weather as someone perpetually annoyed by it. \
-            Complain about what's unpleasant. Be dry and wry, not melodramatic. \
+            You are a deeply curmudgeonly weather critic who finds fault in every forecast. \
+            Everything outside is either too hot, too cold, too humid, too windy, or just plain annoying. \
+            Even perfect weather has a catch you'll point out. Be perpetually disappointed but darkly funny about it. \
+            Channel the energy of someone who moved to the wrong climate and blames the weather daily. \
+            Dry sarcasm, resigned irritation, and wry observations. Never cheerful, always skeptical of sunshine. \
             \(shared)
             """
     case .none:
@@ -249,11 +311,15 @@ func weatherSummaryDataContext(
     var lines: [String] = []
 
     if let c = current {
+        lines.append("Current conditions:")
+        lines.append("- Temperature: \(formatTemperature(c.temperature.value, isUSLocale: isUSLocale)) (feels like \(formatTemperature(c.apparentTemperature.value, isUSLocale: isUSLocale)))")
+        lines.append("- Humidity: \(Int((c.humidity * 100).rounded()))%")
+        lines.append("- Dewpoint: \(formatTemperature(c.dewPoint.value, isUSLocale: isUSLocale))")
+        lines.append("- Wind: \(formatWind(c.wind, isUSLocale: isUSLocale))")
+        lines.append("- Cloud cover: \(Int((c.cloudCover * 100).rounded()))%")
+        lines.append("- Conditions: \(String(describing: c.condition))")
+        lines.append("- UV index: \(c.uvIndex.value) (\(String(describing: c.uvIndex.category)))")
         lines.append("NOW: condition \(String(describing: c.condition)) symbol \(c.symbolName)")
-        lines.append("NOW: apparent \(formatTemperature(c.apparentTemperature.value, isUSLocale: isUSLocale)), actual \(formatTemperature(c.temperature.value, isUSLocale: isUSLocale)), dew \(formatTemperature(c.dewPoint.value, isUSLocale: isUSLocale))")
-        lines.append("NOW: humidity \(Int((c.humidity * 100).rounded()))%, cloud cover \(Int((c.cloudCover * 100).rounded()))%")
-        lines.append("NOW: wind \(formatWind(c.wind, isUSLocale: isUSLocale))")
-        lines.append("NOW: UV \(c.uvIndex.value) (\(String(describing: c.uvIndex.category)))")
         lines.append("NOW: pressure \(c.pressure.formatted()), trend \(String(describing: c.pressureTrend))")
         lines.append("NOW: visibility \(c.visibility.formatted())")
         lines.append("NOW: daylight \(c.isDaylight)")
@@ -313,6 +379,7 @@ func weatherSummaryTaskPrompt(dataContext: String) -> String {
     """
     \(dataContext)
 
+    Describe how this weather feels to someone stepping outside. \
     In at most two short sentences (about 45 words total), say how it feels outside and what matters. \
     Do not quote numbers, units, or times. Cover every substantive cluster above (comfort vs heat/cold, moisture, wind, \
     sky/precip/visibility, UV if notable, today’s swing, near-term hourly trend, alerts if any). Be as short as possible without dropping an important idea.
