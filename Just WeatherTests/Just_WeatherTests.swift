@@ -247,7 +247,27 @@ struct TrimToTwoSentencesTests {
     }
 }
 
-// MARK: - weather summary context + task prompt
+// MARK: - weather summary instructions, context + task prompt
+
+@Suite("summaryInstructions")
+struct SummaryInstructionsTests {
+    @Test func includesWeatherRelationshipGuidance() {
+        let instructions = summaryInstructions(for: .basic)
+        #expect(instructions.contains("Weather is not a collection of isolated data points"))
+        #expect(instructions.contains("Wind & apparent temperature"))
+        #expect(instructions.contains("Humidity & heat"))
+        #expect(instructions.contains("Dewpoint & comfort"))
+        #expect(instructions.contains("Humidity alone is misleading"))
+        #expect(instructions.contains("Overcast vs. sun"))
+        #expect(instructions.contains("Wind + humidity + heat together"))
+    }
+
+    @Test func preservesStyleSpecificGuidance() {
+        let instructions = summaryInstructions(for: .grumpy)
+        #expect(instructions.contains("weather interpreter for Just. Weather."))
+        #expect(instructions.contains("perpetually annoyed"))
+    }
+}
 
 @Suite("weatherSummaryTaskPrompt")
 struct WeatherSummaryTaskPromptTests {
@@ -257,10 +277,10 @@ struct WeatherSummaryTaskPromptTests {
         #expect(prompt.contains("NOW: condition clear"))
         #expect(prompt.contains("ALERTS: none"))
         #expect(prompt.contains("two short sentences"))
+        #expect(prompt.contains("Describe how this weather feels to someone stepping outside."))
     }
 }
 
-@available(iOS 18, *)
 @Suite("weatherSummaryDataContext")
 struct WeatherSummaryDataContextTests {
     @Test func omitsTodayWhenNil() {
@@ -344,33 +364,28 @@ struct LocationManagerTests {
 
 @Suite("WeatherData")
 struct WeatherDataTests {
-    @Test @MainActor func initialHumidity_isZero() {
+    @Test @MainActor func initialCurrent_isNil() {
         let data = WeatherData()
-        #expect(data.humidity == 0.0)
+        #expect(data.current == nil)
     }
 
-    @Test @MainActor func initialWind_isNil() {
+    @Test @MainActor func initialToday_isNil() {
         let data = WeatherData()
-        #expect(data.wind == nil)
+        #expect(data.today == nil)
     }
 
-    @Test @MainActor func initialSunrise_isNil() {
+    @Test @MainActor func initialHourly_isNil() {
         let data = WeatherData()
-        #expect(data.sunrise == nil)
+        #expect(data.hourly == nil)
     }
 
-    @Test @MainActor func initialSunset_isNil() {
+    @Test @MainActor func initialAlerts_isNil() {
         let data = WeatherData()
-        #expect(data.sunset == nil)
+        #expect(data.alerts == nil)
     }
 
-    @Test @MainActor func initialMoonPhase_isNil() {
+    @Test @MainActor func nextFiveHours_isEmptyWhenHourlyIsNil() {
         let data = WeatherData()
-        #expect(data.moonPhase == nil)
-    }
-
-    @Test @MainActor func initialConditionSymbol_isNotEmpty() {
-        let data = WeatherData()
-        #expect(!data.conditionSymbol.isEmpty)
+        #expect(data.nextFiveHours.isEmpty)
     }
 }
